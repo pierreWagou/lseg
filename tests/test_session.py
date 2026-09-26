@@ -19,6 +19,16 @@ class _FakeSession:
         self.closed = True
 
 
+@pytest.fixture
+def registered_default(monkeypatch: pytest.MonkeyPatch) -> dict:
+    """Stub ld.session.set_default (it type-checks real sessions)."""
+    registered: dict = {}
+    monkeypatch.setattr(
+        ld.session, "set_default", lambda session: registered.setdefault("session", session)
+    )
+    return registered
+
+
 def test_effective_session_auto_prefers_platform_when_creds_present() -> None:
     s = Settings(
         _env_file=None,  # type: ignore[call-arg]
@@ -41,7 +51,9 @@ def test_platform_missing_creds_raises_helpful_error() -> None:
         open_lseg_session(s)
 
 
-def test_desktop_uses_app_key_definition(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_desktop_uses_app_key_definition(
+    monkeypatch: pytest.MonkeyPatch, registered_default: dict
+) -> None:
     fake = _FakeSession()
     captured: dict = {}
 
@@ -57,9 +69,12 @@ def test_desktop_uses_app_key_definition(monkeypatch: pytest.MonkeyPatch) -> Non
     session = open_lseg_session(s)
     assert session is fake and fake.opened
     assert captured["app_key"] == "my-key"
+    assert registered_default["session"] is fake
 
 
-def test_platform_builds_client_credentials(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_platform_builds_client_credentials(
+    monkeypatch: pytest.MonkeyPatch, registered_default: dict
+) -> None:
     fake = _FakeSession()
     captured: dict = {}
 
@@ -86,6 +101,7 @@ def test_platform_builds_client_credentials(monkeypatch: pytest.MonkeyPatch) -> 
         LSEG_CLIENT_SECRET="csec",
     )
     assert open_lseg_session(s) is fake
+    assert registered_default["session"] is fake
     assert captured == {
         "client_id": "cid",
         "client_secret": "csec",
@@ -96,7 +112,9 @@ def test_platform_builds_client_credentials(monkeypatch: pytest.MonkeyPatch) -> 
     }
 
 
-def test_session_scope_always_closes(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_session_scope_always_closes(
+    monkeypatch: pytest.MonkeyPatch, registered_default: dict
+) -> None:
     fake = _FakeSession()
 
     class FakeDefinition:
@@ -110,4 +128,24 @@ def test_session_scope_always_closes(monkeypatch: pytest.MonkeyPatch) -> None:
     s = Settings(_env_file=None, LSEG_SESSION="desktop", LSEG_APP_KEY="k")  # type: ignore[call-arg]
     with session_scope(s) as session:
         assert session is fake
+        assert registered_default["session"] is fake
     assert fake.closed
+
+
+def test_open_registers_default_session(
+    monkeypatch: pytest.MonkeyPatch, registered_default: dict
+) -> None:
+    """Regression: Access-layer helpers need the opened session as default."""
+    fake = _FakeSession()
+
+    class FakeDefinition:
+        def __init__(self, *args: object, **kwargs: object) -> None:
+            pass
+
+        def get_session(self) -> _FakeSession:
+            return fake
+
+    monkeypatch.setattr(ld.session.desktop, "Definition", FakeDefinition)
+    s = Settings(_env_file=None, LSEG_SESSION="desktop", LSEG_APP_KEY="k")  # type: ignore[call-arg]
+    assert open_lseg_session(s) is fake
+    assert registered_default["session"] is fake

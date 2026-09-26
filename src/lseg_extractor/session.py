@@ -41,8 +41,15 @@ def open_lseg_session(settings: Settings | None = None) -> Any:
 
     try:
         if kind == "platform-ldpv2":
-            return _open_platform_session(settings)
-        return _open_desktop_session(settings)
+            session = _open_platform_session(settings)
+        else:
+            session = _open_desktop_session(settings)
+        # Access-layer helpers (ld.get_data / ld.get_history) resolve the
+        # library default session implicitly. Sessions built via
+        # Definition(...).get_session() are NOT registered by default
+        # (unlike ld.open_session()), so register explicitly here.
+        ld.session.set_default(session)
+        return session
     except RuntimeError:
         raise
     except Exception as exc:
