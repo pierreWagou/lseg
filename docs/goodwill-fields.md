@@ -1,45 +1,31 @@
-# Goodwill field discovery (Step-0 spike) — STATUS: UNCONFIRMED, needs live session
+# Goodwill field discovery — STATUS: CONFIRMED (Access layer, Workspace session)
 #
-# Web/GitHub search did not confirm the exact `TR.` goodwill data-item name,
-# so v1 pins a single constant (`GOODWILL_FIELD` in `src/lseg_extractor/goodwill.py`)
-# that is a 1-line change once confirmed.
+# ## Confirmed working pattern
 #
-# ## Candidate
+# - Layer: **Access layer** `ld.get_data(universe, fields, parameters)`
+#   (NOT Content-layer `fundamental_and_reference.Definition` — its field
+#   dictionary lacks `TR.Goodwill`, hence the old platform error 218).
+# - Fields: `TR.Goodwill` + `TR.F.PeriodEndDate` (fiscal close date) +
+#   `TR.F.PeriodEndDate.fperiod` (`FY2024`-style label) + `TR.CommonName`.
+# - History params: `{"Period": "FY0", "Frq": "FY", "SDate": 0, "EDate": -N,
+#   "Curn": "EUR"}` — note `SDate`/`EDate` are **integer offsets**
+#   (0 = today, -N = N years back), not date strings.
 #
-# - Primary: `TR.Goodwill` (follows the `TR.Revenue` / `TR.GrossProfit` naming pattern
-#   used by `fundamental_and_reference`).
-# - If `TR.Goodwill` returns `<NA>`/error, confirm via Workspace **Data Item Browser (DIB)**:
-#   search "goodwill", balance-sheet section, and update `GOODWILL_FIELD`.
+# ## Universe
 #
-# ## History parameters (also unconfirmed live)
+# Exhaustive French scope via screener (active or inactive listed companies,
+# HQ in France, euro-converted):
 #
-# `get_goodwill_history` defaults to a single `get_fundamentals` call with:
+#     SCREEN(U(IN(Equity(active or inactive,public,primary))),
+#            IN(TR.HQCountryCode,"FR"), CURN=EUR)
 #
-#     {"SDate": "-<years>Y", "EDate": "0D", "Frq": "FY", "Curn": "<currency>"}
+# Available in code as `FRENCH_SCREENER` / `--preset all-france`.
+# `cac40.txt` / `sbf120.txt` presets remain for fast smoke tests.
 #
-# (`SDate`/`EDate`/`Frq`/`Curn` are standard DIB parameter keys for `TR.` items;
-# `Frq=FY` = annual fiscal periods, `Curn=EUR` = convert to euros.)
-#
-# ## Probe commands (run with Workspace open or LDPv2 creds in `.env`)
+# ## Probe commands
 #
 # ```bash
-# cp .env.example .env   # then fill LSEG_APP_KEY (desktop) or LDPv2 trio
-# uv run python - <<'EOF'
-# from dotenv import load_dotenv; load_dotenv()
-# from lseg_extractor.client import get_fundamentals
-# from lseg_extractor.session import session_scope
-#
-# with session_scope():
-#     df = get_fundamentals(
-#         ["TTE.PA", "MC.PA", "SAN.PA"],
-#         ["TR.Goodwill"],
-#         parameters={"SDate": "-5Y", "EDate": "0D", "Frq": "FY", "Curn": "EUR"},
-#     )
-# print(df.to_string())
-# EOF
+# uv run lseg-extract goodwill --preset cac40 --years 5          # fast check
+# uv run lseg-extract goodwill --preset all-france \
+#   --start-year 1995 --end-year 2025 --output goodwill_france_1995_2025.csv
 # ```
-#
-# If the response is wide (periods as columns), `to_tidy_goodwill` in `goodwill.py`
-# melts it to long form — no code change needed, just verify column labels parse
-# to fiscal years. If the call errors on parameters, retry with `parameters=None`
-# (snapshot) to isolate field-name vs parameter issues, then record findings here.

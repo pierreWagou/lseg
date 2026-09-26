@@ -30,6 +30,8 @@ class Settings(BaseSettings):
     token_scope: str = Field(default="trapi", alias="LSEG_TOKEN_SCOPE")
     goodwill_preset: str = Field(default="cac40", alias="LSEG_GOODWILL_PRESET")
     goodwill_years: int = Field(default=5, alias="LSEG_GOODWILL_YEARS")
+    goodwill_start_year: int | None = Field(default=None, alias="LSEG_GOODWILL_START_YEAR")
+    goodwill_end_year: int | None = Field(default=None, alias="LSEG_GOODWILL_END_YEAR")
 
     @property
     def has_platform_credentials(self) -> bool:

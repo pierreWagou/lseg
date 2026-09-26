@@ -158,29 +158,38 @@ def search(
 
 @app.command()
 def goodwill(
-    preset: Annotated[str, typer.Option(help="French preset: cac40 or sbf120")] = "cac40",
+    preset: Annotated[str, typer.Option(help="French preset: cac40, sbf120, all-france")] = (
+        "cac40"
+    ),
     universe: Annotated[
-        str | None, typer.Option(help="Override RICs, comma-separated or @file.txt")
+        str | None,
+        typer.Option(help="Override: RICs, @file.txt, or raw SCREEN(...) expression"),
     ] = None,
-    years: Annotated[int, typer.Option(help="Annual fiscal periods (Frq=FY)")] = 5,
+    years: Annotated[int, typer.Option(help="Annual fiscal periods back (EDate=-years)")] = 5,
+    start_year: Annotated[int | None, typer.Option(help="Keep fiscal years >= this")] = None,
+    end_year: Annotated[int | None, typer.Option(help="Keep fiscal years <= this")] = None,
     fields: Annotated[
         str | None, typer.Option(help="Override TR fields, e.g. 'TR.Goodwill'")
     ] = None,
     currency: Annotated[str, typer.Option(help="Curn conversion target")] = "EUR",
+    batch_size: Annotated[int, typer.Option(help="RICs per request")] = 50,
     output: Annotated[str | None, typer.Option()] = None,
     format: Annotated[str, typer.Option()] = "csv",
 ) -> None:
     """Goodwill history for French companies (tidy long form)."""
-    from lseg_extractor.goodwill import GOODWILL_FIELD, get_goodwill_history
+    from lseg_extractor.goodwill import get_goodwill_history
 
     settings = get_settings()
     try:
         with session_scope(settings):
             df = get_goodwill_history(
-                universe or preset,
+                universe or preset or settings.goodwill_preset,
                 years=years,
-                fields=_parse_list(fields) if fields else [GOODWILL_FIELD],
+                start_year=start_year if start_year is not None else settings.goodwill_start_year,
+                end_year=end_year if end_year is not None else settings.goodwill_end_year,
+                fields=_parse_list(fields) if fields else None,
                 currency=currency,
+                batch_size=batch_size,
             )
     except (RuntimeError, ValueError) as exc:
         typer.echo(f"Error: {exc}", err=True)

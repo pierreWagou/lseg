@@ -73,18 +73,22 @@ uv run lseg-extract snapshot --universe @rics.txt --fields @fields.txt
 
 Balance-sheet net carrying goodwill (IFRS 3), annual multi-year history, tidy
 long form (`ric, company_name, fiscal_period, fiscal_year, goodwill, currency,
-source_field`). Field used: `TR.Goodwill` — see `docs/goodwill-fields.md`
-(status: candidate, confirm via Workspace Data Item Browser on first live run).
+source_field`). Uses the Access layer: `TR.Goodwill` + `TR.F.PeriodEndDate` /
+`.fperiod`, params `Period=FY0, Frq=FY, SDate=0, EDate=-N, Curn=EUR`
+(see `docs/goodwill-fields.md`).
 
 ```bash
 # CAC 40 (default preset, bundled in the package), 5 annual values each
 uv run lseg-extract goodwill --preset cac40 --years 5
 uv run lseg-extract goodwill --preset cac40 --years 5 --output goodwill_cac40.csv
-uv run lseg-extract goodwill --preset cac40 --years 10 --output gw.parquet --format parquet
 
-# Override universe or TR field without code change
-uv run lseg-extract goodwill --universe @my_rics.txt --years 5
-uv run lseg-extract goodwill --preset cac40 --fields "TR.Goodwill" --currency EUR
+# Exhaustive: all French listed companies incl. delisted, 1995-2025
+uv run lseg-extract goodwill --preset all-france --start-year 1995 --end-year 2025 \
+  --output goodwill_france_1995_2025.csv
+
+# Custom universe, fields, or pacing for big extracts
+uv run lseg-extract goodwill --universe @my_rics.txt --years 10 --batch-size 50
+uv run lseg-extract goodwill --universe "SCREEN(...)" --years 5
 ```
 
 ```python
@@ -92,7 +96,7 @@ from lseg_extractor.goodwill import get_goodwill_history
 from lseg_extractor.session import session_scope
 
 with session_scope():
-    df = get_goodwill_history("cac40", years=5)  # or ["TTE.PA", ...] / "@file.txt"
+    df = get_goodwill_history("cac40", years=5)  # or "all-france" / ["TTE.PA", ...] / "@file.txt"
 ```
 
 ## Reuse from Python / REST API / frontend backend

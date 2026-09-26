@@ -5,6 +5,7 @@ import pytest
 
 from lseg_extractor import goodwill
 from lseg_extractor.goodwill import (
+    FRENCH_SCREENER,
     GOODWILL_FIELD,
     get_goodwill_history,
     load_french_universe,
@@ -12,10 +13,16 @@ from lseg_extractor.goodwill import (
 )
 
 
-def _wide_frame() -> pd.DataFrame:
+def _access_frame() -> pd.DataFrame:
+    """Mimic ld.get_data output for history params: one row per (RIC, year)."""
     return pd.DataFrame(
-        {"2022": [1_000.0], "2023": [1_100.0], "2024": [1_250.0]},
-        index=pd.Index(["TTE.PA"], name="Instrument"),
+        {
+            "Instrument": ["TTE.PA", "TTE.PA", "MC.PA"],
+            "Company Common Name": ["TOTALENERGIES", "TOTALENERGIES", "LVMH"],
+            "Goodwill": [1000.0, 1100.0, float("nan")],
+            "Period End Date": ["2022-12-31", "2023-12-31", "2023-12-31"],
+            "FPeriod": ["FY2022", "FY2023", "FY2023"],
+        }
     )
 
 
@@ -25,13 +32,17 @@ def test_load_cac40_preset_has_40_rics() -> None:
     assert "TTE.PA" in rics and "MC.PA" in rics
 
 
+def test_load_all_france_returns_screener() -> None:
+    assert load_french_universe("all-france") == [FRENCH_SCREENER]
+
+
 def test_load_unknown_preset_raises() -> None:
     with pytest.raises(ValueError, match="unknown preset"):
         load_french_universe("dax")
 
 
-def test_to_tidy_wide_frame() -> None:
-    tidy = to_tidy_goodwill(_wide_frame(), fields=[GOODWILL_FIELD], currency="EUR")
+def test_to_tidy_access_frame() -> None:
+    tidy = to_tidy_goodwill(_access_frame(), currency="EUR")
     assert list(tidy.columns) == [
         "ric",
         "company_name",
@@ -42,34 +53,78 @@ def test_to_tidy_wide_frame() -> None:
         "source_field",
     ]
     assert len(tidy) == 3
-    assert tidy["fiscal_year"].tolist() == [2022, 2023, 2024]
+    assert tidy["fiscal_year"].tolist() == [2022, 2023, 2023]
+    assert tidy["fiscal_period"].tolist() == ["FY2022", "FY2023", "FY2023"]
     assert (tidy["currency"] == "EUR").all()
     assert (tidy["source_field"] == GOODWILL_FIELD).all()
+    assert tidy["goodwill"].isna().sum() == 1  # NA rows preserved
 
 
-def test_to_tidy_keeps_na_rows() -> None:
-    df = pd.DataFrame({"2024": [float("nan")]}, index=pd.Index(["ALO.PA"], name="Instrument"))
-    tidy = to_tidy_goodwill(df)
-    assert len(tidy) == 1 and tidy["goodwill"].isna().all()
+def test_to_tidy_missing_goodwill_column_raises() -> None:
+    df = pd.DataFrame({"Instrument": ["TTE.PA"], "BID": [1.0]})
+    with pytest.raises(RuntimeError, match="No goodwill column"):
+        to_tidy_goodwill(df)
 
 
-def test_get_goodwill_history_chunks_and_concatenates(
+def test_get_goodwill_history_batches_and_filters(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     calls: list[dict] = []
 
-    def fake_get_fundamentals(universe, fields, parameters=None, session=None):  # type: ignore[no-untyped-def]
-        calls.append({"universe": list(universe), "parameters": parameters})
-        idx = pd.Index(universe, name="Instrument")
-        return pd.DataFrame({"2024": [1.0] * len(universe)}, index=idx)
+    def fake_get_snapshot(universe, fields, parameters=None, session=None):  # type: ignore[no-untyped-def]
+        calls.append({"universe": list(universe), "fields": fields, "parameters": parameters})
+        idx = [f"RIC{i}.PA" for i in range(len(universe))]
+        return pd.DataFrame(
+            {
+                "Instrument": idx,
+                "Company Common Name": idx,
+                "Goodwill": [1.0] * len(universe),
+                "Period End Date": ["2023-12-31"] * len(universe),
+                "FPeriod": ["FY2023"] * len(universe),
+            }
+        )
 
-    monkeypatch.setattr(goodwill, "get_fundamentals", fake_get_fundamentals)
-    tidy = get_goodwill_history([f"RIC{i}.PA" for i in range(25)], years=3)
-    assert len(tidy) == 25  # 25 RICs × 1 period column
-    assert len(calls) == 3  # chunked 10 / 10 / 5
-    assert calls[0]["parameters"]["SDate"] == "-3Y"
-    assert calls[0]["parameters"]["Frq"] == "FY"
-    assert calls[0]["parameters"]["Curn"] == "EUR"
+    monkeypatch.setattr(goodwill, "get_snapshot", fake_get_snapshot)
+    tidy = get_goodwill_history(
+        [f"RIC{i}.PA" for i in range(120)],
+        years=3,
+        start_year=2023,
+        end_year=2023,
+        batch_size=50,
+        pause=0,
+    )
+    assert len(tidy) == 120
+    assert len(calls) == 3  # 50 / 50 / 20
+    params = calls[0]["parameters"]
+    assert params == {"Period": "FY0", "Frq": "FY", "SDate": 0, "EDate": -3, "Curn": "EUR"}
+    assert GOODWILL_FIELD in calls[0]["fields"]
+
+
+def test_get_goodwill_history_screener_sent_whole(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    seen: list = []
+
+    def fake_get_snapshot(universe, fields, parameters=None, session=None):  # type: ignore[no-untyped-def]
+        seen.append(list(universe))
+        return _access_frame()
+
+    monkeypatch.setattr(goodwill, "get_snapshot", fake_get_snapshot)
+    tidy = get_goodwill_history("all-france", years=5, pause=0)
+    assert seen == [[FRENCH_SCREENER]]  # never split into batches
+    assert set(tidy["ric"]) == {"TTE.PA", "MC.PA"}
+
+
+def test_get_goodwill_history_year_filter_empties(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        goodwill,
+        "get_snapshot",
+        lambda *a, **kw: _access_frame(),  # type: ignore[no-untyped-def]
+    )
+    with pytest.raises(RuntimeError, match="year filtering"):
+        get_goodwill_history(["TTE.PA"], years=5, start_year=2030, pause=0)
 
 
 def test_get_goodwill_history_rejects_empty_universe() -> None:
