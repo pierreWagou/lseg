@@ -208,11 +208,14 @@ def _resolve_universe(universe: list[str] | str) -> list[str]:
 
 
 def _preset_path(preset: str) -> Path:
-    # 1) packaged data (installed distribution), 2) repo-root data/ (dev checkout).
+    # 1) packaged data (installed distribution), 2) legacy repo-root data/.
     try:
         candidate = _resources_files("lseg_extractor") / "data" / "universes" / f"{preset}.txt"
         if candidate.is_file():
             return Path(str(candidate))
-    except Exception:  # noqa: BLE001, S110 — fall back to repo-relative path
+    except Exception:  # noqa: BLE001, S110 — fall back to sibling data dir
         pass
+    sibling = Path(__file__).resolve().parent / "data" / "universes" / f"{preset}.txt"
+    if sibling.exists():
+        return sibling
     return Path(__file__).resolve().parents[2] / "data" / "universes" / f"{preset}.txt"
