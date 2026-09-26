@@ -1,0 +1,44 @@
+# SBF 120 preset — TODO: curate full 120-RIC list.
+# The SBF 120 = CAC 40 + CAC Next 20 + CAC Mid 60 (all Euronext Paris).
+# Until curated, use the CAC 40 preset or pass --universe @your_rics.txt.
+# To build: export constituents from Euronext / Workspace screener, one RIC per line.
+AC.PA
+AI.PA
+AIR.PA
+MT.AS
+AXAF.PA
+BNP.PA
+BVI.PA
+CAP.PA
+CA.PA
+ACA.PA
+BN.PA
+DSY.PA
+ENG.PA
+EL.PA
+ERF.PA
+HRMS.PA
+KER.PA
+OR.PA
+MC.PA
+ML.PA
+ORA.PA
+PERP.PA
+PUB.PA
+RENA.PA
+SAF.PA
+SGO.PA
+SAN.PA
+SU.PA
+SOGN.PA
+STLA.PA
+STM.PA
+TE.PA
+TTE.PA
+URW.AS
+VIE.PA
+DG.PA
+LEGD.PA
+THAL.PA
+ALO.PA
+TEPP.PA

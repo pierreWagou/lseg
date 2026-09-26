@@ -1,0 +1,13 @@
+.env
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.ruff_cache/
+*.csv
+*.parquet
+lseg-data-lib.log
+lseg-data-lib*.log
+.uv/
+dist/
+*.egg-info/

@@ -1,0 +1,44 @@
+# CAC 40 constituents — Euronext Paris blue chips
+# Source: Euronext CAC 40 composition; as-of: 2026-09-26 (review quarterly — constituents drift).
+# RIC notes: ArcelorMittal (MT.AS) and Unibail-Rodamco (URW.AS) are Euronext Amsterdam listings
+# but CAC 40 members; STMicroelectronics RIC is STM.PA on Euronext Paris.
+AC.PA
+AI.PA
+AIR.PA
+MT.AS
+AXAF.PA
+BNP.PA
+BVI.PA
+CAP.PA
+CA.PA
+ACA.PA
+BN.PA
+DSY.PA
+ENG.PA
+EL.PA
+ERF.PA
+HRMS.PA
+KER.PA
+OR.PA
+MC.PA
+ML.PA
+ORA.PA
+PERP.PA
+PUB.PA
+RENA.PA
+SAF.PA
+SGO.PA
+SAN.PA
+SU.PA
+SOGN.PA
+STLA.PA
+STM.PA
+TE.PA
+TTE.PA
+URW.AS
+VIE.PA
+DG.PA
+LEGD.PA
+THAL.PA
+ALO.PA
+TEPP.PA

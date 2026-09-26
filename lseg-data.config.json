@@ -1,0 +1,40 @@
+{
+  "logs": {
+    "level": "info",
+    "transports": {
+      "console": {
+        "enabled": false
+      },
+      "file": {
+        "enabled": false,
+        "name": "lseg-data-lib.log"
+      }
+    }
+  },
+  "sessions": {
+    "default": "desktop.workspace",
+    "platform": {
+      "ldpv2auth": {
+        "app-key": "YOUR V2 OAUTH APP KEY GOES HERE",
+        "client_id": "YOUR SERVICE CLIENT ID GOES HERE",
+        "client_secret": "YOUR SERVICE CLIENT SECRET GOES HERE"
+      },
+      "deployed": {
+        "app-key": "YOUR APP KEY GOES HERE",
+        "realtime-distribution-system": {
+          "url": "ws://YOUR-ADS-HOST:15000",
+          "dacs": {
+            "username": "YOUR DACS ID GOES HERE",
+            "application-id": 256,
+            "position": ""
+          }
+        }
+      }
+    },
+    "desktop": {
+      "workspace": {
+        "app-key": "YOUR DESKTOP APP KEY GOES HERE"
+      }
+    }
+  }
+}
