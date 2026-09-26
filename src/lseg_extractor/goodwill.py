@@ -20,7 +20,7 @@ GOODWILL_FIELD = "TR.Goodwill"
 """Primary TR data item for balance-sheet net carrying goodwill (IFRS 3)."""
 
 FRENCH_PRESETS = ("cac40", "sbf120")
-"""Available `--preset` values, resolved to `data/universes/<preset>.txt`."""
+"""Available `--preset` values, bundled under `lseg_extractor/data/universes/`."""
 
 _HISTORY_PARAM_DEFAULTS = {"Frq": "FY"}
 """Non-date history params merged into every goodwill request."""

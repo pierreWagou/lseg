@@ -77,7 +77,7 @@ source_field`). Field used: `TR.Goodwill` — see `docs/goodwill-fields.md`
 (status: candidate, confirm via Workspace Data Item Browser on first live run).
 
 ```bash
-# CAC 40 (default preset, data/universes/cac40.txt), 5 annual values each
+# CAC 40 (default preset, bundled in the package), 5 annual values each
 uv run lseg-extract goodwill --preset cac40 --years 5
 uv run lseg-extract goodwill --preset cac40 --years 5 --output goodwill_cac40.csv
 uv run lseg-extract goodwill --preset cac40 --years 10 --output gw.parquet --format parquet
