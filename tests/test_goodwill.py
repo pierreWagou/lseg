@@ -63,8 +63,33 @@ def test_to_tidy_access_frame() -> None:
 
 def test_to_tidy_missing_goodwill_column_raises() -> None:
     df = pd.DataFrame({"Instrument": ["TTE.PA"], "BID": [1.0]})
-    with pytest.raises(RuntimeError, match="No goodwill column"):
-        to_tidy_goodwill(df)
+    # Single requested value field that is NOT among helpers: BID columns are its series.
+    tidy = to_tidy_goodwill(df, fields=["BID"])
+    assert tidy["goodwill"].tolist() == [1.0]
+    assert tidy["source_field"].tolist() == ["BID"]
+
+
+def test_to_tidy_single_field_ignores_header_names() -> None:
+    # Live shape: value columns titled by year, no "goodwill" header anywhere.
+    df = pd.DataFrame(
+        {
+            "Instrument": ["TTE.PA"],
+            "Company Common Name": ["TOTALENERGIES"],
+            "2022": [1000.0],
+            "2023": [1100.0],
+        }
+    )
+    tidy = to_tidy_goodwill(df, fields=[GOODWILL_FIELD])
+    assert len(tidy) == 2
+    assert tidy["fiscal_year"].tolist() == [2022, 2023]
+    assert tidy["goodwill"].tolist() == [1000.0, 1100.0]
+    assert (tidy["source_field"] == GOODWILL_FIELD).all()
+
+
+def test_to_tidy_multi_field_unmatched_raises() -> None:
+    df = pd.DataFrame({"Instrument": ["TTE.PA"], "BID": [1.0]})
+    with pytest.raises(RuntimeError, match="No column for requested field"):
+        to_tidy_goodwill(df, fields=["TR.Goodwill", "TR.Revenue"])
 
 
 def test_get_goodwill_history_batches_and_filters(

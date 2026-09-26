@@ -10,6 +10,15 @@
 # - History params: `{"Period": "FY0", "Frq": "FY", "SDate": 0, "EDate": -N,
 #   "Curn": "EUR"}` — integer relative offsets, colleague-proven.
 #
+# ## Response shaping assumption
+#
+# Requesting a single `TR.Goodwill` value field means every non-helper column
+# in the response IS its series by construction — the loader does not require
+# any \"goodwill\" header text (headers vary: years, display titles,
+# localized names). `reset_index()` artifacts (e.g. an `index` column) are
+# excluded structurally. Strict per-field header matching applies only to
+# multi-value-field requests.
+#
 # ## What the official docs add (LSEG Reference Guide 2.0.0.2 + official examples repo)
 #
 # - `parameters` is \"single key=value global parameter or dictionary of global

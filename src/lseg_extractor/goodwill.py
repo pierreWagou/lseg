@@ -129,7 +129,7 @@ def get_goodwill_history(
     batches = _to_batches(units, batch_size)
     for i, batch in enumerate(batches):
         wide = get_snapshot(batch, fields, parameters=params)
-        frames.append(to_tidy_goodwill(wide, currency=currency))
+        frames.append(to_tidy_goodwill(wide, fields=fields, currency=currency))
         if pause > 0 and i < len(batches) - 1:
             time.sleep(pause)
     tidy = pd.concat(frames, ignore_index=True) if frames else pd.DataFrame()
@@ -145,12 +145,24 @@ def get_goodwill_history(
     return tidy
 
 
-def to_tidy_goodwill(df: pd.DataFrame, currency: str = "EUR") -> pd.DataFrame:
+def to_tidy_goodwill(
+    df: pd.DataFrame,
+    fields: list[str] | None = None,
+    currency: str = "EUR",
+) -> pd.DataFrame:
     """Normalize an Access-layer goodwill response to tidy long form.
 
-    Expected columns (matched case-insensitively, header wording may vary by
-    library version): instrument id, company name, a goodwill value column, a
-    period-end date column, and optionally an fperiod label column.
+    Column headers vary by library version (titles vs field names, localized
+    display names), so matching is case-insensitive and structural:
+
+    - Helper columns (instrument id, company name, period-end date, fperiod
+      label) are identified by name.
+    - When exactly one non-helper field was requested (the normal
+      single-`TR.Goodwill` path), **all remaining columns are its series by
+      construction** — no \"GOODWILL\" header required.
+    - With several value fields, columns are matched per field and anything
+      unmatched raises an error listing the actual columns.
+
     Never drops NA values.
     """
     columns = [
@@ -164,6 +176,7 @@ def to_tidy_goodwill(df: pd.DataFrame, currency: str = "EUR") -> pd.DataFrame:
     ]
     if df is None or df.empty:
         return pd.DataFrame(columns=columns)
+    fields = fields or [GOODWILL_FIELD]
 
     frame = df.reset_index()
     cols = {str(c).upper(): c for c in frame.columns}
@@ -176,36 +189,87 @@ def to_tidy_goodwill(df: pd.DataFrame, currency: str = "EUR") -> pd.DataFrame:
                 return original
         return None
 
-    ric_col = _find("INSTRUMENT", "RIC") or frame.columns[0]
+    helpers: set = {
+        _find("INSTRUMENT", "RIC")
+        or next((c for c in frame.columns if c in df.columns), frame.columns[0]),
+        _find("COMMONNAME", "COMMON NAME", "COMPANYNAME", "COMPANY NAME", "NAME"),
+        _find("PERIODENDDATE", "PERIOD END", exclude="FPERIOD"),
+        _find("FPERIOD"),
+    }
+    helpers.discard(None)
+    # Columns created by reset_index() itself (e.g. "index") are structural,
+    # never value columns.
+    helpers.update(c for c in frame.columns if c not in df.columns)
+    ric_col = _find("INSTRUMENT", "RIC") or next(
+        (c for c in frame.columns if c in df.columns), frame.columns[0]
+    )
     name_col = _find("COMMONNAME", "COMMON NAME", "COMPANYNAME", "COMPANY NAME", "NAME")
-    gw_col = _find("GOODWILL")
     date_col = _find("PERIODENDDATE", "PERIOD END", exclude="FPERIOD")
     label_col = _find("FPERIOD")
-    if gw_col is None:
-        raise RuntimeError(
-            f"No goodwill column in LSEG response. Got columns: {list(frame.columns)}"
-        )
 
-    out = pd.DataFrame()
-    out["ric"] = frame[ric_col].astype(str)
-    out["company_name"] = frame[name_col].astype(str) if name_col else pd.NA
-    if label_col:
-        out["fiscal_period"] = frame[label_col].astype(str)
-    elif date_col:
-        out["fiscal_period"] = frame[date_col].astype(str)
-    else:
-        out["fiscal_period"] = pd.NA
-    if date_col:
-        dates = pd.to_datetime(frame[date_col], errors="coerce")
-        out["fiscal_year"] = dates.dt.year.astype("Int64")
-    else:
-        out["fiscal_year"] = (
-            out["fiscal_period"].astype(str).str.extract(r"(\d{4})").astype("Int64")
+    helper_fields = {
+        COMPANY_NAME_FIELD.upper(),
+        PERIOD_END_FIELD.upper(),
+        PERIOD_LABEL_FIELD.upper(),
+    }
+    value_fields = [f for f in fields if f.upper() not in helper_fields]
+    if not value_fields:
+        raise RuntimeError(f"No value field requested. Got columns: {list(frame.columns)}")
+
+    if len(value_fields) == 1:
+        # Single requested field: remaining columns ARE its series.
+        value_cols = [c for c in frame.columns if c not in helpers]
+        if not value_cols:
+            raise RuntimeError(
+                f"No value columns in LSEG response. Got columns: {list(frame.columns)}"
+            )
+        long = frame.melt(
+            id_vars=sorted(helpers, key=list(frame.columns).index),
+            value_vars=value_cols,
+            var_name="_period",
+            value_name="goodwill",
         )
-    out["goodwill"] = pd.to_numeric(frame[gw_col], errors="coerce")
-    out["currency"] = currency
-    out["source_field"] = GOODWILL_FIELD
-    return out[columns]
+        long["source_field"] = value_fields[0]
+    else:
+        # Several value fields: match columns per field suffix, e.g. "Goodwill".
+        parts: list[pd.DataFrame] = []
+        for field in value_fields:
+            suffix = field.split(".")[-1].upper()
+            matched = [c for c in frame.columns if c not in helpers and suffix in str(c).upper()]
+            if not matched:
+                raise RuntimeError(
+                    f"No column for requested field {field!r}. Got columns: {list(frame.columns)}"
+                )
+            part = frame.melt(
+                id_vars=sorted(helpers, key=list(frame.columns).index),
+                value_vars=matched,
+                var_name="_period",
+                value_name="goodwill",
+            )
+            part["source_field"] = field
+            parts.append(part)
+        long = pd.concat(parts, ignore_index=True)
+
+    long = long.rename(columns={ric_col: "ric"})
+    long["company_name"] = (
+        long[name_col].astype(str) if name_col and name_col in long.columns else pd.NA
+    )
+    if label_col and label_col in long.columns:
+        long["fiscal_period"] = long[label_col].astype(str)
+    elif date_col and date_col in long.columns:
+        long["fiscal_period"] = long[date_col].astype(str)
+    else:
+        long["fiscal_period"] = long["_period"].astype(str)
+    if date_col and date_col in long.columns:
+        dates = pd.to_datetime(long[date_col], errors="coerce")
+        long["fiscal_year"] = dates.dt.year.astype("Int64")
+    else:
+        long["fiscal_year"] = (
+            long["fiscal_period"].astype(str).str.extract(r"(\d{4})").astype("Int64")
+        )
+    long["goodwill"] = pd.to_numeric(long["goodwill"], errors="coerce")
+    long["currency"] = currency
+    return long[columns]
 
 
 def _resolve_universe(universe: list[str] | str) -> list[str]:
