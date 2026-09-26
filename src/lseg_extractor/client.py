@@ -4,11 +4,12 @@ Each function returns a `pandas.DataFrame` and performs no printing or file
 I/O. Call them inside :func:`lseg_extractor.session.session_scope` (or pass
 an explicit open `session`) so authentication is handled in one place.
 
-Covers the four main read patterns (scope TBD by user):
+Covers the main read patterns:
 - snapshot quotes / reference fields (Access layer `ld.get_data`)
 - historical time series (Access layer `ld.get_history`)
 - fundamentals & reference (Content layer `fundamental_and_reference`)
 - news headlines + instrument search (Content layer)
+- ESG scores & measures (Content layer `esg`)
 """
 
 from typing import Any
@@ -16,6 +17,8 @@ from typing import Any
 import pandas as pd
 
 __all__ = [
+    "get_esg_measures",
+    "get_esg_overview",
     "get_fundamentals",
     "get_history",
     "get_news_headlines",
@@ -150,6 +153,45 @@ def search_instruments(
     response = definition.get_data(session=session)
     try:
         return _ensure_frame(response.data.df, "search")
+    finally:
+        close_quietly(response)
+
+
+def get_esg_overview(
+    universe: list[str],
+    session: Any | None = None,
+) -> pd.DataFrame:
+    """ESG basic overview per company (Asset4 coverage, scores snapshot)."""
+    from lseg.data.content.esg import basic_overview
+
+    universe = _require_non_empty("universe", universe)
+    definition = basic_overview.Definition(universe=universe)
+    response = definition.get_data(session=session)
+    try:
+        return _ensure_frame(response.data.df, "ESG overview")
+    finally:
+        close_quietly(response)
+
+
+def get_esg_measures(
+    universe: list[str],
+    start: int | None = None,
+    end: int | None = None,
+    session: Any | None = None,
+) -> pd.DataFrame:
+    """ESG standard measures per company, optionally for fiscal years [start, end]."""
+    from lseg.data.content.esg import standard_measures
+
+    universe = _require_non_empty("universe", universe)
+    kwargs: dict = {"universe": universe}
+    if start is not None:
+        kwargs["start"] = start
+    if end is not None:
+        kwargs["end"] = end
+    definition = standard_measures.Definition(**kwargs)
+    response = definition.get_data(session=session)
+    try:
+        return _ensure_frame(response.data.df, "ESG measures")
     finally:
         close_quietly(response)
 

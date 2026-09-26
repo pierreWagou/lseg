@@ -99,6 +99,25 @@ with session_scope():
     df = get_goodwill_history("cac40", years=5)  # or "all-france" / ["TTE.PA", ...] / "@file.txt"
 ```
 
+## ESG measures (Asset4-based, lseg-data native module)
+
+Equivalent of Datastream-for-Office ESG grids (see `docs/esg-fields.md` for the
+mapping): per-company measures snapshot, or fiscal-year ranged.
+
+```bash
+uv run lseg-extract esg --preset cac40
+uv run lseg-extract esg --preset cac40 --start 2020 --end 2024 --output esg_cac40.csv
+uv run lseg-extract esg --universe "TTE.PA,MC.PA,SAN.PA" --output esg.csv
+```
+
+```python
+from lseg_extractor.client import get_esg_measures
+from lseg_extractor.session import session_scope
+
+with session_scope():
+    df = get_esg_measures(["TTE.PA", "MC.PA"], start=2020, end=2024)
+```
+
 ## Reuse from Python / REST API / frontend backend
 
 `client.py` is import-safe (no prints, no file I/O, no Typer) — it returns

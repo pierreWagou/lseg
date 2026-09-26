@@ -167,6 +167,34 @@ def search(
 
 
 @app.command()
+def esg(
+    preset: Annotated[str, typer.Option(help="French preset: cac40, sbf120, all-france")] = (
+        "cac40"
+    ),
+    universe: Annotated[
+        str | None,
+        typer.Option(help="Override: RICs, @file.txt, or raw SCREEN(...) expression"),
+    ] = None,
+    start: Annotated[int | None, typer.Option(help="First fiscal year for measures")] = None,
+    end: Annotated[int | None, typer.Option(help="Last fiscal year for measures")] = None,
+    output: Annotated[str | None, typer.Option()] = None,
+    format: Annotated[str, typer.Option()] = "csv",
+) -> None:
+    """ESG standard measures per company (Asset4-based, snapshot by default)."""
+    from lseg_extractor.client import get_esg_measures
+    from lseg_extractor.goodwill import _resolve_universe
+
+    settings = get_settings()
+    try:
+        with session_scope(settings):
+            df = get_esg_measures(_resolve_universe(universe or preset), start=start, end=end)
+    except (RuntimeError, ValueError) as exc:
+        typer.echo(f"Error: {exc}", err=True)
+        raise typer.Exit(1) from exc
+    _write_output(df, output, format, index=False)
+
+
+@app.command()
 def goodwill(
     preset: Annotated[str, typer.Option(help="French preset: cac40, sbf120, all-france")] = (
         "cac40"

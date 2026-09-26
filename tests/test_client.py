@@ -7,6 +7,8 @@ import pandas as pd
 import pytest
 
 from lseg_extractor.client import (
+    get_esg_measures,
+    get_esg_overview,
     get_fundamentals,
     get_history,
     get_news_headlines,
@@ -99,3 +101,36 @@ def test_search_instruments(monkeypatch: pytest.MonkeyPatch) -> None:
     df = search_instruments("IBM", top=3)
     assert df is search_df
     assert captured["top"] == 3
+
+
+def test_get_esg_overview(monkeypatch: pytest.MonkeyPatch) -> None:
+    esg_df = pd.DataFrame({"ESG Score": [75.5]}, index=["TTE.PA"])
+    captured = _patch_content_definition(
+        monkeypatch, "lseg.data.content.esg.basic_overview", esg_df
+    )
+    df = get_esg_overview(["TTE.PA"])
+    assert df is esg_df
+    assert captured["universe"] == ["TTE.PA"]
+
+
+def test_get_esg_overview_rejects_empty_universe() -> None:
+    with pytest.raises(ValueError, match="universe"):
+        get_esg_overview([])
+
+
+def test_get_esg_measures_forwards_years(monkeypatch: pytest.MonkeyPatch) -> None:
+    esg_df = pd.DataFrame({"ESG Score": [75.5]})
+    captured = _patch_content_definition(
+        monkeypatch, "lseg.data.content.esg.standard_measures", esg_df
+    )
+    df = get_esg_measures(["TTE.PA"], start=2020, end=2024)
+    assert df is esg_df
+    assert captured == {"universe": ["TTE.PA"], "start": 2020, "end": 2024}
+
+
+def test_get_esg_measures_empty_frame_raises(monkeypatch: pytest.MonkeyPatch) -> None:
+    _patch_content_definition(
+        monkeypatch, "lseg.data.content.esg.standard_measures", pd.DataFrame()
+    )
+    with pytest.raises(RuntimeError, match="no ESG measures"):
+        get_esg_measures(["TTE.PA"])

@@ -1,6 +1,8 @@
 """lseg_extractor — reusable primitives + thin CLI for the LSEG Data Platform."""
 
 from lseg_extractor.client import (
+    get_esg_measures,
+    get_esg_overview,
     get_fundamentals,
     get_history,
     get_news_headlines,
@@ -30,6 +32,8 @@ __all__ = [
     "PERIOD_LABEL_FIELD",
     "Settings",
     "close_session",
+    "get_esg_measures",
+    "get_esg_overview",
     "get_fundamentals",
     "get_goodwill_history",
     "get_history",
