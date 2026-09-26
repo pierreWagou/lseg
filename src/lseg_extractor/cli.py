@@ -30,6 +30,16 @@ def _parse_list(value: str) -> list[str]:
     return [i.strip() for i in value.split(",") if i.strip()]
 
 
+def _coerce_date(value: str | None, default: int) -> int | str:
+    """CLI strings → int when numeric (TR offsets), else official string form."""
+    if value is None:
+        return default
+    try:
+        return int(value)
+    except ValueError:
+        return value
+
+
 def _write_output(df, output: str | None, fmt: str, index: bool = True) -> None:
     import pandas as pd
 
@@ -172,6 +182,14 @@ def goodwill(
         str | None, typer.Option(help="Override TR fields, e.g. 'TR.Goodwill'")
     ] = None,
     currency: Annotated[str, typer.Option(help="Curn conversion target")] = "EUR",
+    sdate: Annotated[
+        str | None,
+        typer.Option(help="SDate override, e.g. '0CY' (default: 0)"),
+    ] = None,
+    edate: Annotated[
+        str | None,
+        typer.Option(help="EDate override, e.g. '-1AM' (default: -years)"),
+    ] = None,
     batch_size: Annotated[int, typer.Option(help="RICs per request")] = 50,
     output: Annotated[str | None, typer.Option()] = None,
     format: Annotated[str, typer.Option()] = "csv",
@@ -189,6 +207,8 @@ def goodwill(
                 end_year=end_year if end_year is not None else settings.goodwill_end_year,
                 fields=_parse_list(fields) if fields else None,
                 currency=currency,
+                sdate=_coerce_date(sdate, 0),
+                edate=_coerce_date(edate, -years),
                 batch_size=batch_size,
             )
     except (RuntimeError, ValueError) as exc:

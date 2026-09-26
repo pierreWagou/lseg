@@ -4,6 +4,7 @@ import pandas as pd
 import pytest
 
 from lseg_extractor import goodwill
+from lseg_extractor.cli import _coerce_date
 from lseg_extractor.goodwill import (
     FRENCH_SCREENER,
     GOODWILL_FIELD,
@@ -115,6 +116,29 @@ def test_get_goodwill_history_screener_sent_whole(
     assert set(tidy["ric"]) == {"TTE.PA", "MC.PA"}
 
 
+def test_get_goodwill_history_sdate_edate_forms(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    seen: list = []
+
+    def fake_get_snapshot(universe, fields, parameters=None, session=None):  # type: ignore[no-untyped-def]
+        seen.append(parameters)
+        return pd.DataFrame(
+            {
+                "Instrument": ["TTE.PA"],
+                "Goodwill": [1.0],
+                "Period End Date": ["2023-12-31"],
+            }
+        )
+
+    monkeypatch.setattr(goodwill, "get_snapshot", fake_get_snapshot)
+    get_goodwill_history(["TTE.PA"], years=3, pause=0)
+    assert seen[0]["SDate"] == 0 and seen[0]["EDate"] == -3
+    # Official string forms pass through untouched.
+    get_goodwill_history(["TTE.PA"], years=3, sdate="0CY", edate="-1AM", pause=0)
+    assert seen[1]["SDate"] == "0CY" and seen[1]["EDate"] == "-1AM"
+
+
 def test_get_goodwill_history_year_filter_empties(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -125,6 +149,13 @@ def test_get_goodwill_history_year_filter_empties(
     )
     with pytest.raises(RuntimeError, match="year filtering"):
         get_goodwill_history(["TTE.PA"], years=5, start_year=2030, pause=0)
+
+
+def test_coerce_date() -> None:
+    assert _coerce_date(None, -5) == -5
+    assert _coerce_date("-35", -5) == -35
+    assert _coerce_date("0CY", 0) == "0CY"
+    assert _coerce_date("-1AM", -5) == "-1AM"
 
 
 def test_get_goodwill_history_rejects_empty_universe() -> None:

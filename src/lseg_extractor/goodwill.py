@@ -81,6 +81,8 @@ def get_goodwill_history(
     fields: list[str] | None = None,
     currency: str = "EUR",
     parameters: dict | None = None,
+    sdate: int | str = 0,
+    edate: int | str | None = None,
     batch_size: int = _BATCH_SIZE,
     pause: float = _BATCH_PAUSE_SECS,
     session: Any | None = None,
@@ -95,6 +97,10 @@ def get_goodwill_history(
         fields: TR fields (default goodwill + period-end helpers).
         currency: `Curn` conversion target (default EUR).
         parameters: override/extend auto-built history params.
+        sdate/edate: `SDate`/`EDate` values. Defaults `0`/`-years` (integer
+            relative offsets, colleague-proven). Official docs attest string
+            forms instead (e.g. `'0CY'`, `'2020-01-01'`, `'-1AM'`) — pass
+            strings here to try those without code changes.
         batch_size/pause: throttle large universes (screener extracts).
         session: accepted for signature uniformity (unused, see noqa).
 
@@ -109,7 +115,13 @@ def get_goodwill_history(
     if batch_size < 1:
         raise ValueError("'batch_size' must be >= 1.")
     fields = fields or [COMPANY_NAME_FIELD, GOODWILL_FIELD, PERIOD_END_FIELD, PERIOD_LABEL_FIELD]
-    params = {"Period": "FY0", "Frq": "FY", "SDate": 0, "EDate": -years, "Curn": currency}
+    params = {
+        "Period": "FY0",
+        "Frq": "FY",
+        "SDate": sdate,
+        "EDate": -years if edate is None else edate,
+        "Curn": currency,
+    }
     if parameters:
         params.update(parameters)
 
